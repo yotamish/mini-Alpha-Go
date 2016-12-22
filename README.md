@@ -1,2 +1,2 @@
 # mini-Alpha-Go
-project A - technion
+project A - technion - CONNECT4 version
