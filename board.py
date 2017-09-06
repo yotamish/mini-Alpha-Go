@@ -1,15 +1,21 @@
 """
 A collection of classes and functions for playing certain types of
-games. Specifically, an implementation of the MCTS algorithm.
+games.
 """
 import random, Queue
 from math import sqrt, log
+import Tkinter
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
 from random import sample
+
 
 class Game(object):
     """
     Base class for multi-player adversarial games.
     """
+
     def actions(self, state):
         raise Exception('Method must be overridden.')
 
@@ -24,7 +30,6 @@ class Game(object):
 
     def outcome(self, state, player):
         raise Exception('Method must be overridden.')
-
 
 class ConnectFour(Game):
     """
@@ -43,27 +48,26 @@ class ConnectFour(Game):
     this player.
     """
 
+    PLAYERS = (1, 2)
+    HEIGHT = 4 #just a defualt value
+    WIDTH = 4   #just a default value
 
-    PLAYERS = (1,2)
-    HEIGHT = 4
-    WIDTH = 4
-
-    TARGET = 3
+    TARGET = 3 #just a default value
 
     VALUE_WIN = 1
     VALUE_LOSE = -1
     VALUE_DRAW = 0
 
     def __init__(self, players=PLAYERS, height=HEIGHT, width=WIDTH, target=TARGET):
-        self.players  = players
-        self.height   = height
-        self.width    = width
-        self.target   = target
+        self.players = players
+        self.height = height
+        self.width = width
+        self.target = target
 
     def _legal(self, state, action):
-        if action not in xrange(len(state)):
+        if action not in xrange(len(state)):    #check for column match
             raise Exception('Invalid action: out of range')
-        return len(state[action]) < self.height
+        return len(state[action]) < self.height #check for row match (height in the board)
 
     def _streak(self, state, player, start, delta, length=0):
         # Check for out-of-bounds at low end b/c of wrapping
@@ -78,9 +82,9 @@ class ConnectFour(Game):
             return False
         # Current slot is owned by the player
         length += 1
-        if length == self.target: # Streak is already long enough
+        if length == self.target:  # Streak is already long enough
             return True
-        # Continue searching, 
+        # Continue searching,
         drow, dcolumn = delta
         return self._streak(
             state,
@@ -88,8 +92,31 @@ class ConnectFour(Game):
             (row + drow, column + dcolumn),
             delta,
             length
-        )        
+        )
 
+    def better_pretty_state(self, state):
+        M = np.zeros(shape=(self.height,self.width))
+        i = self.height-1
+        j=0
+        for column in state:
+            for k in column:
+                M[i,j]=k
+                i-=1
+            i=self.height-1
+            j+=1
+        return M
+    def state_in_a_row_for_first_NN(self, state):
+        ar = [] #ar will hold a list of values  for the state in the form of [1,0,2,2,1,...]
+        height=self.height
+        count=0
+        for i in xrange(0,height):
+            for column in state:
+                if len(column) > i:
+                    ar.append(column[i])
+                else:
+                    ar.append(0)
+
+        return ar
     def pretty_state(self, state, escape=False):
         output = ''
         for j in range(self.width):
@@ -116,7 +143,7 @@ class ConnectFour(Game):
 
     def actions(self, state):
         return tuple(
-            [i for i, _ in enumerate(state) if self._legal(state, i)]
+            [i for i, _ in enumerate(state) if self._legal(state, i)] 
         )
 
     def result(self, state, action, player):
@@ -148,15 +175,15 @@ class ConnectFour(Game):
             return self.players[index + 1]
         else:
             return self.players[0]
-        
+
     def outcome(self, state, player):
         for ci, column in enumerate(state):
             for ri, marker in enumerate(column):
                 if any((
-                    self._streak(state, marker, (ri, ci), (1, 0)),
-                    self._streak(state, marker, (ri, ci), (0, 1)),
-                    self._streak(state, marker, (ri, ci), (1, 1)),
-                    self._streak(state, marker, (ri, ci), (1, -1)),
+                        self._streak(state, marker, (ri, ci), (1, 0)),
+                        self._streak(state, marker, (ri, ci), (0, 1)),
+                        self._streak(state, marker, (ri, ci), (1, 1)),
+                        self._streak(state, marker, (ri, ci), (1, -1)),
                 )):
                     # A winner was found
                     if marker == player:
@@ -169,36 +196,28 @@ class ConnectFour(Game):
 
 class Node(object):
 
-    COLORS = {
-        1: 'red',
-        2: 'yellow',
-        3: 'orange',
-        4: 'green',
-        5: 'blue',
-        6: 'purple'
-    }
-
     def __init__(self, parent, action, state, player, game=None):
         if parent is None and game is None:
             raise Exception('No game provided')
         # Game
         self.game = game or parent.game
         # Structure
-        self.parent    = parent
-        self.children  = dict.fromkeys(self.game.actions(state))
+        self.parent = parent
+        self.children = dict.fromkeys(self.game.actions(state))
         # Tree data
-        self.action    = action
-        self.state     = state
+        self.action = action
+        self.state = state
         # Search meta data
-        self.player    = player
-        self.visits    = 0
-        self.value     = 0.0
-    
-    def __iter__(self):
+        self.player = player
+        self.visits = 0
+        self.value = 0.0
+
+    def __iter__(self):    
         """
         A generator function. Does a pre-order traversal over the nodes
         in the tree without using recursion.
         """
+        print "we are in __iter__!!!"
         active = Queue.Queue()
         active.put(self)
         while active.qsize() > 0:
@@ -208,13 +227,14 @@ class Node(object):
                     active.put(child)
             yield next
 
-    def __len__(self):
+    def __len__(self):     
         """
         Returns the number of nodes in the tree. This requires a
         traversal, so it has O(n) running time.
         """
         n = 0
-        for node in self.traverse():
+        print 'we are in __len__!!!'
+        for node in self.traverse():  
             n += 1
         return n
 
@@ -239,6 +259,24 @@ class Node(object):
         """
         return self.weight + c * sqrt(2 * log(self.parent.visits) / self.visits)
 
+    def search_weight_by_mAlphaGo(self, x,CNN_action, c):
+        """
+                Compute the mAlphaGo search weight function for this node. Defined as:
+
+                    w = Q(v') / N(v') + c * sqrt(2 * ln(N(v)) / N(v')) + c*sqrt(2)*identifier of action_value
+
+                Where v' is the current node and v is the parent of the current node,
+                and Q(x) is the total value of node x and N(x) is the number of visits
+                to node x.
+                """
+
+        identifier_func=0
+        if (self.action==CNN_action):	#good match!
+            identifier_func=1
+
+        return self.weight + 0 * sqrt(2 * log(self.parent.visits) / self.visits)+ c*sqrt(2)*identifier_func/(1+self.visits)
+
+
     def actions(self):
         """
         The valid actions for the current node state.
@@ -246,6 +284,7 @@ class Node(object):
         return self.game.actions(self.state)
 
     def result(self, action):
+        # type: (object) -> object
         """
         The state resulting from the given action taken on the current node
         state by the node player.
@@ -279,11 +318,12 @@ class Node(object):
         """
         return not None in self.children.values()
 
-    def expand(self):
+    def expand(self,d_S_V):
         """
         Instantiates one of the unexpanded children (if there are any,
         otherwise raises an exception) and returns it.
         """
+
         try:
             action = self.children.keys()[self.children.values().index(None)]
         except ValueError:
@@ -294,20 +334,55 @@ class Node(object):
 
         child = Node(self, action, state, player)
         self.children[action] = child
+        #d_S_V is a dict for holding data for further analysis
+        if self.parent is not None:
+            if self.player is 1 and not self.terminal():
+                d_S_V.setdefault(self.state,[])
+                d_S_V[self.state][child.state]=child.value, child.action
+
+        return child
+    def expand1(self,d_S_V):
+        """
+        *********YOTAM: I added expand1 in order to try to run a BFS scan of the entire tree
+        Instantiates one of the unexpanded children (if there are any,
+        otherwise raises an exception) and returns it.
+        """
+        try:
+            action = self.children.keys()[self.children.values().index(None)]
+        except ValueError:
+            raise Exception('Node is already fully expanded')
+
+
+        state = self.game.result(self.state, action, self.player)
+        player = self.game.next_player(self.player)
+
+        child = Node(self, action, state, player)
+        self.children[action] = child
+
         return child
 
-    def best_child(self, c=1/sqrt(2)):
-        if not self.fully_expanded():
-            raise Exception('Node is not fully expanded')
+    def best_child(self, c=1 / sqrt(2)):
 
         return max(self.children.values(), key=lambda x: x.search_weight(c))
-        
-    def best_action(self, c=1/sqrt(2)):
+
+    def best_child_by_mAlphaGo(self, CNN_action, c=1 / sqrt(2)):
+
+        return max(self.children.values(), key=lambda x: x.search_weight_by_mAlphaGo(x,CNN_action,c))
+
+
+    def best_action(self, c=1 / sqrt(2)):
         """
         Returns the action needed to reach the best child from the current
         node.
         """
         return self.best_child(c).action
+
+    def best_action_by_mAlphaGo(self, CNN_action, c=1 / sqrt(2)):
+
+        # Returns the action needed to reach the best child from the current
+        # node.
+
+        return self.best_child_by_mAlphaGo(CNN_action,c).action
 
     def max_child(self):
         """
@@ -328,163 +403,175 @@ class Node(object):
             st = self.game.result(st, action, pl)
             pl = self.game.next_player(pl)
         return self.game.outcome(st, player)
-        
-    def dot_string(self, value=False, prettify=lambda x: x):
-        """
-        Returns the tree rooted at the current node as a string
-        in dot format. Each node is labeled with its state, which
-        is first run through prettify. If value is True, then
-        the value is included in the node label.
-        """
-        output = ''
-        output += 'digraph {\n'
-        for node in self:
-            # Define the node
-            name = prettify(node.state)
-            if value:
-                name += '%s\\n' % node.value
-            color = self.COLORS[node.player]
-            output += '\t"%s" [style="filled", fillcolor="%s"]\n' % (
-                name, color
-            )
-            # No edge into the root node
-            if node.parent is None:
-                continue
-            # Add edge from node parent to node
-            pname = prettify(node.parent.state)
-            if value:
-                pname += '%s\\n' % node.parent.value
-            output += '\t"%s" -> "%s"\n' % (pname, name)
-        output += '}'
-        return output
 
+def mcts_mAlphaGo(game,state,player,budget,d_S_V,CNN_action):
+    """
+        Implementation of the mAlphaGo's search algorithm
+        """
 
-def mcts_uct(game, state, player, budget):
-    """
-    Implementation of the UCT variant of the MCTS algorithm.
-    """
     root = Node(None, None, state, player, game)
-    while budget:      #YOTAM: I COMMENTED THIS
-    #while not root.fully_expanded():
-        budget -= 1        #YOTAM: I COMMENTED THIS
+    # print "state of root", root.state
+    dr = []
+    t = 0
+    t_a = []
+    while budget:
+        budget -= 1
         # Tree Policy
         child = root
         while not child.terminal():
             if not child.fully_expanded():
-                child = child.expand()
-                break  #YOTAM: I COMENTED THIS
+                child = child.expand(d_S_V)
+                break
             else:
                 child = child.best_child()
         # Default Policy
         delta = child.simulation(player)
+        # print "player is: ", player
+
         # Backup
         while not child is None:
             child.visits += 1
             child.value += delta
-            child = child.parent
+            # if not child.parent is None:
+            if child.player is 1 and not child.terminal():
+                d_S_V.setdefault(child.state, {})
 
-    return root.best_action(c=0)
+            for key in d_S_V:
+                if child.state in d_S_V[key]:
+                    # if child.player is 1:
+                    d_S_V[key][child.state] = child.value, child.action
 
 
-def full_tree(game, state, player):
+            child = child.parent  #  backprop
+
+            # ***************START DRAWING MCTS CONVERGENCE PLOT****************
+    #    if root.fully_expanded():
+    #        #print root.best_action(c=0)
+    #        if root.visits is not 0:
+    #            dr.append(root.weight)
+    #        t_a.append(t)
+    #        t+=1
+    #plt.plot(t_a,dr, 'bs')
+    #plt.ylabel('root weight value for mAlphaGo')
+    #plt.xlabel('iteration number')
+    #plt.show()
+            # **************STOP DRAWING MCTS CONVERGENCE PLOT*********************
+    # print dr
+    # print "budget now is:  ", budget
+    # print "best action is: ", root.best_action(c=0)
+    return root.best_action_by_mAlphaGo(CNN_action=CNN_action,c=1)
+
+
+def mcts_uct(game, state, player, budget,d_S_V):
     """
-    Creates a full game tree in which player moves first. The traversal is done
-    in breadth-first order. The return value is the root node.
+    Implementation of the UCT variant of the MCTS algorithm.
     """
-    active = Queue.Queue()
-    root = Node(None, None, state, player)
-    active.put(root)
-    
-    current = None
-    while active.qsize() > 0:
-        current = active.get()
-        # Assign value if this is a terminal node
-        if game.terminal(current.state):
-            continue
-        # Explore children otherwise
-        for action in game.actions(current.state):
-            nstate = game.result(current.state, action, current.player)
-            nplayer = game.next_player(current.player)
-            node = Node(current, action, nstate, nplayer)
-            current.children[action] = node
-            active.put(node)
-    return root
 
-#
-# def minimax(game, state, player):
-#     """
-#     Applies the Minimax algorithm to the given game. Returns the
-#     root node with values assigned to each node in the game tree.
-#     """
-#     active = []
-#
-#     root = full_tree(game, state, player)
-#     for node in root:
-#         active.append(node)
-#
-#     current = None
-#     while active:
-#         current = active.pop()
-#         # Leaf (terminal) node
-#         if game.terminal(current.state):
-#             current.value = game.outcome(current.state, player)
-#             continue
-#         # Interior or root node
-#         values = tuple([i.value for i in current.children.values()])
-#         if current.player == player:
-#             current.value = max(values)
-#         else:
-#             current.value = min(values)
-#         #YOTAM ADDED THIS:
-#     print root
-#         #YOTAM END
-#
-#     return root
+    root = Node(None, None, state, player, game)
+    dr=[]
+    t=0
+    t_a=[]
+    while budget:
+        budget -= 1
+        # Tree Policy
+        child = root
+        while not child.terminal():
+            if not child.fully_expanded():
+                child = child.expand(d_S_V)
+                break
+            else:
+                child = child.best_child()
+        # Default Policy
+        delta = child.simulation(player)
 
-#
-# def mcts(game, state, player, n):
-#     """
-#     Implementation of the UCT variant of the Monte Carlo Tree Search algorithm.
-#     """
-#     root = Node(None, None, state, player)
-#     unexplored = Queue.Queue()
-#     unexplored.put(root)
-#     #print "root: ",root
-#     for _ in xrange(n):
-#         # Quit early if we are out of nodes
-#         if unexplored.qsize() == 0:
-#             break
-#         # Add the new node to the tree
-#         current = unexplored.get()
-#         if current.parent is not None:
-#             current.parent.children[current.action] = current
-#         # Add the newly discovered nodes to the queue
-#         for action in game.actions(current.state):
-#             nstate = game.result(current.state, action, current.player)
-#             nplayer = game.next_player(current.player)
-#             node = Node(current, action, nstate, nplayer)
-#             unexplored.put(node)
-#         # Simulate the rest of the game from the current node
-#         cstate = current.state
-#         cplayer = current.player
-#         while not game.terminal(cstate):
-#             caction = random.choice(game.actions(cstate))
-#             cstate = game.result(cstate, caction, cplayer)
-#             cplayer = game.next_player(cplayer)
-#         simvalue = game.outcome(cstate, player)
-#         # Back simulation value up to the root
-#         backup = current
-#         while backup is not None:
-#             backup.value += simvalue
-#             backup.visits += 1
-#             backup = backup.parent
-#
-#     return root
-#
-#
+        # Backup
+        while not child is None:
+            child.visits += 1
+            child.value += delta
+            #if not child.parent is None:
+            if child.player is 1 and not child.terminal():
+                d_S_V.setdefault(child.state, {})
 
+            for key in d_S_V:
+                if child.state in d_S_V[key]:
+                        d_S_V[key][child.state]=child.value, child.action
+                #print child.state,d_S_V[child.state]
+            # end function and return to safe haven
+
+            child = child.parent        # backprop
+
+#***************START DRAWING MCTS CONVERGENCE PLOT****************
+    #    if root.fully_expanded():
+    #        #print root.best_action(c=0)
+    #        if root.visits is not 0:
+    #            dr.append(root.weight)
+    #        t_a.append(t)
+    #        t+=1
+    #plt.plot(t_a,dr, 'ro')
+    #plt.ylabel('root weight value for MCTS')
+    #plt.xlabel('iteration number')
+    #plt.show()
+#**************STOP DRAWING MCTS CONVERGENCE PLOT*********************
+    #print dr
+    #print "budget now is:  ", budget
+    #print "best action is: ", root.best_action(c=0)
+    return root.best_action(c=1)
+
+def BFS_scan_of_tree(game,state,player,d_S_V,child1=0,start=0):
+    """
+    trying to build the full game tree with backpropagating from each final state (tree leaf).
+    """
+    count=0
+    if start==0:
+        child = Node(None, None, state, player, game)
+    else:
+         child=child1
+
+    tree=list()             #tmp var to keep all the nodes to expand in order to construct tree2save
+    tree2save=list()        #tree2save will be the tree which we'll use for backprop and print
+    while not child.terminal() or not len(tree)==0:
+        while not child.fully_expanded() and not child.terminal():
+            current=child.expand1(d_S_V)
+            tree.append(current)
+            tree2save.append(current)
+            count+=1
+41        child=tree.pop()
+    print "total number of states is: ", count+1
+
+#*****************NOW TRY TO UPDATE WITH BACKPROP*****************
+#first, try to find every final play
+    for son in tree2save:
+        if son.terminal():
+            son1=son
+            #backprop
+            while not son1 is None:
+                son1.visits += 1
+                son1.value -= son.outcome(son.player)
+                son1 = son1.parent
+
+#*****************STOP TRYING TO UPDATE WITH BACKPROP****************
+
+	# I know, I know - bad programming ahead! prepare yourselves
+
+    #***********create a matrix for examples with dimensions: (num_of_examples)X(size_of_array)***********
+    X = np.zeros(shape=(count+1, 12))          #FIXME: 16 is the dimension of the board, write it like a human being!
+    Y = np.zeros(shape=(count+1,5)) #Y AS A ONE HOT VECTOR, and this is the case of 3X4 board
 
 
+    #************ADD ZERO STATE**************#
+    X[0]=np.zeros(shape=(1,12))
+    Y[0]=np.zeros(shape=(1,5))
+    Y[0][0]=1 #value check for all childern gives the following weights vector:
+    #(0.886959492157,0.879333732925, 0.879333732925, 0.886959492157)
+    #***********FINISH ADDING ZERO STATE******
+    num_of_line=1
+    for sons in tree2save:
+            X[num_of_line] =sons.game.state_in_a_row_for_first_NN(sons.state)
+            if not sons.terminal():
+                Y[num_of_line][sons.best_action(c=0)]= 1
+            else:
+                Y[num_of_line][4]= 1    #because 4 is the case of terminal state - 4X4 case
 
+            num_of_line+=1
 
-
+    return X,Y
