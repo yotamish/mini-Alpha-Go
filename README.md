@@ -4,7 +4,7 @@ Trying to implement a simplified version of AlphaGo (by "Google DeepMind") – a
 
 - board.py : A collection of classes and functions for playing certain types of games.
 - connect_four.py : A simulator for playing Connect4 (mAlphaGo vs. standard MCTS).
-- train_cnn.py : building an training the cnn (the 'mAlphaGo' player) using Tensorflow.
+- train_cnn.py : building and training the cnn (the 'mAlphaGo' player) using Tensorflow.
 
 (disclaimer - The code is quite messy, largely uncommented, and intended mainly for reference)
 
