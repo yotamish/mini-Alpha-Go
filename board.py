@@ -535,8 +535,7 @@ def BFS_scan_of_tree(game,state,player,d_S_V,child1=0,start=0):
             tree.append(current)
             tree2save.append(current)
             count+=1
-41        child=tree.pop()
-    print "total number of states is: ", count+1
+        child=tree.pop()
 
 #*****************NOW TRY TO UPDATE WITH BACKPROP*****************
 #first, try to find every final play
