@@ -154,7 +154,7 @@ def play(human=False, n=1000, n_of_games=1):
             while not game.terminal(state):
 
 
-                if human:       #important: I COMMENTED EVERYTHING IN 'HUMAN' AND MADE 'HUMAN' A RANDOM PLAYER
+                if human:   
                     prompt = 'Choose a move, choices are %s: ' % (game.actions(state),)
                     success = False
                     while not success:
@@ -167,6 +167,9 @@ def play(human=False, n=1000, n_of_games=1):
                             pass
                         except Exception:
                             pass
+                    #  if you want to use a random player, uncomment the following and comment the above
+                    # I will try to make it less messy soon (define 'player' as a class with several subclasses as players).
+                    # nontheless it should be the same except for the bad programming
                     # action=random.choice(game.actions(state))
                     # state=game.result(state,action,player)
                 else:
@@ -231,7 +234,7 @@ if '-n' in sys.argv:
     except:
         pass
 
-human = False  # mark as 'True' if you want to play against MCTS bot
+human = False 
 if '-c' in sys.argv:
     human = False
 
