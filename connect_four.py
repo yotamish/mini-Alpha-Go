@@ -34,12 +34,8 @@ def play(human=False, n=1000, n_of_games=1):
     target = 3
     initial = ((),) * width
 
-    # game = board.ConnectFour(height=height, width=width, target=target)
-    # state = initial
-    # player = game.players[0]
-    # computer = game.players[1]
 
-    # here I try to add and define the dictionary that will hold everything together
+    # define dictionaries to later use and analyse data
     d_S_V1 = dict()
     d_S_V2 = dict()
 
@@ -182,7 +178,6 @@ def play(human=False, n=1000, n_of_games=1):
                     CNN_action = np.argmax((action_vec))  #this is the action that the network wants
                     action = board.mcts_mAlphaGo(game, state, player, n, d_S_V2, CNN_action)
                     try:
-                        #state = game.result(state, CNN_action, player) #this is for perfect player
                         state = game.result(state, action, player) #this is mAlphaGo
                     except:
                         #this is when the action value gives an illegal advice(shouldn't happen). when happens - use normal mcts
@@ -197,31 +192,13 @@ def play(human=False, n=1000, n_of_games=1):
                 if game.terminal(state):
                     break
 
-                # Computer plays now
-                #****YOTAM: THIS WILL BE THE MCTS PLAYER
-                #action_vec = sess.run(pred, feed_dict={x: game.state_in_a_row_for_first_NN(state), keep_prob: 1.})
-                # input_data = np.zeros((1, 12))
-                # input_data = input_data + game.state_in_a_row_for_first_NN(state)
-                # # input_d = np.transpose(game.state_in_a_row_for_first_NN(state))
-                # #print("the state input for CNN is: ", input_data)
-                # action_vec = sess.run(pred, feed_dict={x: input_data, keep_prob: 1.})
-                #
-                # CNN_action = np.argmax(action_vec)
-                # print CNN_action
-                # #action = random.choice(game.actions(state))
-                # state = game.result(state, CNN_action, computer)
-                # #counter_for_games_played += 1  # YOTAM: added here
+                # MCTS player plays now
                 action = board.mcts_uct(game, state, computer, n, d_S_V1)
                 state = game.result(state, action, computer)
 
-                #print 'Player 2 chose the best action to be %s' % action
-            #print "counter for turns taken: ", counter_for_games_played  # YOTAM: added here
-            #print game.pretty_state(state, False)
-            #print game.better_pretty_state(state)  #FIXME: UNCOMMENT ME IF YOU WANT TO SEE THE STATES!
-            #print
+
             outcome = game.outcome(state, player)
 
-          #UNCOMMENT THIS SECTION IF YOU WANT TO SEE THE WINNER IN EVERY SINGLE GAME
             #******************
             if outcome == 1:
                 print 'Player 1 wins game number ' + str(i) + '.'
